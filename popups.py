@@ -102,10 +102,14 @@ class stylePopup(object):
 		self.c1 = Canvas(top, height = h, width = w, background = "white")
 		self.c2 = Canvas(top, height = h, width = w, background = "white")
 
+		self.white_check = IntVar(value = 1)
+		Checkbutton(top, text="Apply on white?", variable=self.white_check).grid(row=1, column = 1, sticky = N)
+
+
 		self.l1.grid(row = 0, column = 0, sticky = N)
-		self.l2.grid(row = 0, column = 3, sticky = N)
+		self.l2.grid(row = 0, column = 2, sticky = N)
 		self.c1.grid(row = 1, column = 0, sticky = N)
-		self.c2.grid(row = 1, column = 3, sticky = N)
+		self.c2.grid(row = 1, column = 2, sticky = N)
 
 		self.c1.create_rectangle(30, 30, 60, 60, fill = "#A84444")
 		self.c1.create_rectangle(60, 60, 90, 90, fill = "#44A844")
@@ -131,13 +135,17 @@ class stylePopup(object):
 			self.c2.delete(i)
 
 		img = self.canvas_to_cv()
-		mask = (img == 255).all(axis=2)
+
+		if not self.white_check.get():
+			mask = (img == 255).all(axis=2)
+		else:
+			mask = None
 
 		self.model.load_style_model(self.style_value)
 		gen_img = self.model.translate(img, mask, "style")
-		img_t = ImageTk.PhotoImage(gen_img)
+		self.img_t = ImageTk.PhotoImage(gen_img)
 
-		self.c2.create_image(0, 0, image = img_t)
+		self.img_2 = self.c2.create_image(0, 0, anchor = NW, image = self.img_t)
 		self.top.update_idletasks()
 
 	def cleanup(self):

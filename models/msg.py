@@ -6,7 +6,7 @@ import numpy as np
 import math
 from torch.autograd import Variable
 import matplotlib.pyplot as plt
-from models.building_blocks import SpectralNorm, Self_Attn
+from models.building_blocks import SpectralNorm, Self_Attn, ModulatingNet
 
 class ConvBlock(nn.Module):
 	def __init__(self, in_channels, out_channels, specnorm = True):
@@ -27,17 +27,17 @@ class Generator(nn.Module):
 		super(Generator, self).__init__()
 		self.h, self.w = image_size[0]//8, image_size[1]//8
 
-		self.Proj = nn.Linear(128, 128*self.h*self.w)
+		self.Proj = nn.Linear(noise_dim, 128*self.h*self.w)
 		self.RGB_init = nn.Conv2d(128, 3, kernel_size = 1)
 
 		self.Attn = Self_Attn(32, specnorm = specnorm)
 
-		self.layers, self.rgbs = [], []
+		self.layers, self.rgbs, self.mns = [], [], []
 
 		f = 128
 		for i in range(3):
 			self.layers.append(ConvBlock(f, f//2, specnorm = specnorm))
-
+			self.mns.append(ModulatingNet(f//2, noise_dim = noise_dim, specnorm = specnorm))
 			RGB = nn.Conv2d(f//2, 3, kernel_size = 1)
 			if specnorm: RGB = SpectralNorm(RGB)
 
@@ -45,7 +45,7 @@ class Generator(nn.Module):
 
 			f = f//2
 
-		self.layers, self.rgbs = nn.ModuleList(self.layers), nn.ModuleList(self.rgbs)
+		self.layers, self.rgbs, self.mns = nn.ModuleList(self.layers), nn.ModuleList(self.rgbs), nn.ModuleList(self.mns)
 
 	def forward(self, z):
 		x = F.leaky_relu(self.Proj(z)).view(-1, 128, self.h, self.w)
@@ -54,9 +54,11 @@ class Generator(nn.Module):
 		for i in range(3):
 			x = F.interpolate(x, scale_factor = 2)
 			x = self.layers[i](x)
+			g, b = self.mns[i](z)
+			x = g*x + b
 
-			if i == 1:
- 						x, _ = self.Attn(x)
+			#if i == 1:
+ 						#x, _ = self.Attn(x)
 
 			t = torch.tanh(self.rgbs[i](x))
 			o.append(t)
@@ -69,7 +71,7 @@ class Discriminator(nn.Module):
 		super(Discriminator, self).__init__()
 		self.layers, self.rgbs = [], []
 
-		f = 32
+		f = 64
 		self.C_init = nn.Conv2d(3, f, kernel_size = 3, padding = 1)
 		self.Pool = nn.AvgPool2d(3, stride = 2, padding = 1)
 

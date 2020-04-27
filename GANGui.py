@@ -42,13 +42,17 @@ class GANGui:
 		self.edit_menu.add_command(label="Merge Layers", command = self.merge_layers)
 
 		self.filter_menu = Menu(self.menu, tearoff = 0)
-		self.filter_menu.add_command(label="Apply Style", command = lambda :  self.translate("style"))
+		self.filter_submenu = Menu(self.filter_menu, tearoff = 0)
+		self.filter_submenu.add_command(label="Blur", command = lambda : self.blur())
+		self.filter_menu.add_cascade(label = "Filters", menu = self.filter_submenu)
 		self.filter_menu.add_command(label = "Gauganize", command = lambda : self.generate(gaugan = True))
+		self.filter_menu.add_command(label="Apply Image Translation", command = lambda :  self.translate("style"))
 		self.filter_menu.add_command(label="Apply Super Resolution(4x)", command = lambda : self.translate("sr"))
+
 
 		self.menu.add_cascade(label = "File", menu = self.file_menu)
 		self.menu.add_cascade(label = "Edit", menu = self.edit_menu)
-		self.menu.add_cascade(label = "Filter", menu = self.filter_menu)
+		self.menu.add_cascade(label = "Filters", menu = self.filter_menu)
 
 		self.toolbar = Frame(root, bd = 4, relief = RAISED)
 		self.toolbar.config(background = "#313134")
@@ -452,6 +456,34 @@ class GANGui:
 		curr_layer = self.curr_layer
 		return img, layer_list, layer_image_dict, curr_layer
 
+	def blur(self):
+		hideables = self.hide_other_layers()
+		img = self.canvas_to_cv()
+		self.show_hidden_layers(hideables)
+
+		for i in self.canvas.find_withtag(self.curr_layer):
+			self.layer_image_dict[self.curr_layer] = []
+			self.canvas.delete(i)
+
+		mask = (img == 255).all(axis=2)
+
+		img[mask] = [255, 255, 255]
+		mask = img.mean(axis = 2)
+		x, y = np.where(mask != 255.0)
+		if len(x) and len(y):
+			x1, y1, x2, y2 = min(x), min(y), max(x), max(y)
+			img = img[x1:x2, y1:y2]
+
+		img = cv2.GaussianBlur(img, (5,5), 20)
+		img = Image.fromarray(img)
+
+		img_t = ImageTk.PhotoImage(img)
+		i = self.canvas.create_image(0, 0, anchor=NW, image = img_t)
+		self.canvas.itemconfig(i, tags = ("Layer_" + str(self.no_of_layers), "image"))
+		self.layer_image_dict["Layer_" + str(self.no_of_layers)] = [img_t]
+
+		self.push_undo()
+		root.update_idletasks()
 
 	#######################################################################################################################
 	#GAN RELATED FUNCTION CALLS
@@ -485,14 +517,19 @@ class GANGui:
 		img = self.canvas_to_cv()
 		self.show_hidden_layers(hideables)
 		style_value = None
+		white_check = False
 
 		if operation == "style":
 			w = stylePopup(self.root, self.model)
 			self.root.wait_window(w.top)
+			white_check = w.white_check.get()
 			if not w.apply:
 				return
 
-		mask = (img == 255).all(axis=2)
+		if not white_check:
+			mask = (img == 255).all(axis=2)
+		else:
+			mask = None
 
 		for i in self.canvas.find_withtag(self.curr_layer):
 			#Remove from layer_image_dict
@@ -523,11 +560,11 @@ def stack_checker(App):
 		time.sleep(2)
 		App.lock.acquire()
 
-		if len(App.undo_stack) > 10:
+		if len(App.undo_stack) > 15:
 			print("Undo states limit")
 			App.undo_stack.pop(0)
 
-		if len(App.redo_queue) > 10:
+		if len(App.redo_queue) > 15:
 			print("Redo states limit")
 			App.redo_queue.pop(-1)
 
