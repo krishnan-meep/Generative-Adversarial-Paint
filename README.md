@@ -2,10 +2,12 @@
 
 Paint? Hurrah!
 
+![Toolkit](https://github.com/krishnan-meep/Generative-Adversarial-Paint/blob/master/weights/Toolkit_MainScreen.png)
+
 Repository to hold my basic Tkinter paint editor that incorporates Generative Adversarial Networks for zaniness
 Run the GANGUI.py file to take a look at the toolkit.
 
-#Change Log (Maybe)
+## Change Log (Maybe)
 
 9th April 2020
 - Really should've started this sooner, I'm a week in and I have no idea what I've done day to day
@@ -31,7 +33,6 @@ Run the GANGUI.py file to take a look at the toolkit.
 	 	- Actually train working models when possible
 	 	- Implement merge layers function
 	 	- Text to image GAN models
-
 	 	- This is so complex I don't think it's worth the limitations it would impose; a selection box that
 	 	  you can move around and apply operations in specifically.
 
