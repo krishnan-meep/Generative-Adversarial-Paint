@@ -82,7 +82,7 @@ class generatePopup(object):
 
 	def change_gen_model(self, event = None):
 		gen_model = event.widget.get()
-		print(gen_model)
+		self.model.load_gan_model(gen_model)
 
 	def cleanup(self):
 		self.apply = True
@@ -206,4 +206,85 @@ class mergePopup(object):
 
 	def cleanup(self):
 		self.first, self.second = self.drop1.get(), self.drop2.get()
+		self.top.destroy()
+
+class textgeneratePopup(object):
+	def __init__(self, master, model):
+		self.master = master
+		top = self.top = Toplevel(master)
+		self.b1 = Button(top, text = "Generate", command = self.gen_examples)
+		self.b2 = Button(top, text = "Interpolate", command = self.interpolate)
+		self.b3 = Button(top, text = "Add to canvas", command = self.cleanup)
+		h, w = 192,192
+
+		self.model = model
+		self.img_t3 = None
+		self.apply = False
+
+		self.text = "Nothing"
+
+		self.l1 = Label(top, text = "Image 1")
+		self.l2 = Label(top, text = "Interpolated Image")
+		self.l3 = Label(top, text = "Image 2")
+		self.c1 = Canvas(top, height = h, width = w, background = "white")
+		self.c2 = Canvas(top, height = h, width = w, background = "white")
+		self.c3 = Canvas(top, height = h, width = w, background = "white")
+
+		self.slider = Scale(top, from_= 0, to = 100, tickinterval = 100, orient = HORIZONTAL, length = 120)
+
+		self.l4 = Label(top, text = "Type in text here")
+		self.e1 = Entry(top, width = 30)
+
+		self.l1.grid(row = 0, column = 0, sticky = N, padx = 4, pady = 4)
+		self.l2.grid(row = 0, column = 2, sticky = N, padx = 4, pady = 4)
+		self.l3.grid(row = 0, column = 4, sticky = N, padx = 4, pady = 4)
+		self.c1.grid(row = 1, column = 0, sticky = N, padx = 4, pady = 4)
+		self.c2.grid(row = 1, column = 2, sticky = N, padx = 4, pady = 4)
+		self.c3.grid(row = 1, column = 4, sticky = N, padx = 4, pady = 4)
+
+		self.slider.grid(row = 2, column = 2, sticky = S, padx = 4, pady = 4)
+		self.b1.grid(row = 3, column = 0, sticky = N, padx = 4, pady = 4)
+		self.b2.grid(row = 3, column = 2, sticky = N, padx = 4, pady = 4)
+		self.b3.grid(row = 3, column = 4, sticky = N, padx = 4, pady = 4)
+
+		self.l4.grid(row = 2, column = 4)
+		self.e1.grid(row = 2, column = 4)
+
+	def gen_examples(self):
+		self.text = self.e1.get()
+
+		if not self.text:
+			self.text = "Nothing"
+
+		img1, self.noise1 = self.model.text_generate(self.text)
+		img2, self.noise2 = self.model.text_generate(self.text)
+
+		self.img_t1 = ImageTk.PhotoImage(img1)
+		i1 = self.c1.create_image(0, 0, anchor=NW, image = self.img_t1)
+		self.img_t2 = ImageTk.PhotoImage(img2)
+		i2 = self.c3.create_image(0, 0, anchor=NW, image = self.img_t2)
+
+		self.interpolate()
+
+		self.master.update_idletasks()
+		self.top.update_idletasks()
+
+	def interpolate(self):
+		alpha = float(self.slider.get())/100
+		noise = alpha*self.noise2 + (1 - alpha)*self.noise1								#Cause of how the slide works
+
+		img3, _ = self.model.text_generate(self.text, noise)
+
+		self.img_t3 = ImageTk.PhotoImage(img3)
+		i3 = self.c2.create_image(0, 0, anchor=NW, image = self.img_t3)
+
+		self.master.update_idletasks()
+		self.top.update_idletasks()
+
+	def change_gen_model(self, event = None):
+		gen_model = event.widget.get()
+		print(gen_model)
+
+	def cleanup(self):
+		self.apply = True
 		self.top.destroy()

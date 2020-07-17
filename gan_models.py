@@ -4,6 +4,7 @@ from popups import *
 from tkinter import filedialog
 from PIL import ImageTk, Image, ImageGrab
 import numpy as np
+import pandas as pd
 import time
 import os
 import sys
@@ -19,6 +20,7 @@ from models.cycgan import UNet_Generator, Star_Generator
 from models.srgan import SRGenerator
 from models.gaugan import SPADE_Generator
 from models.msg import Generator
+from models.text2img_gan import Text_Embedder, Text_Generator
 
 
 class GANModels:
@@ -26,8 +28,9 @@ class GANModels:
 		#self.model = Basic_Generator(image_size = (128, 128), specnorm = True)
 		self.gan_noise_dim = 512
 		self.gau_noise_dim = 128
+		self.text_noise_dim = 512
 		self.gan_image_size = (32,32)
-		self.gau_image_size = (128,128)
+		self.gau_image_size = (256,256)
 
 		device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -36,27 +39,41 @@ class GANModels:
 		self.star_model = Star_Generator(img_size = (128,128), cond_length = 5).to(device)
 		self.gau_model = SPADE_Generator(image_size = self.gau_image_size, seg_channels = 1, specnorm = True).to(device)
 		self.sr_model = SRGenerator(specnorm = True).to(device)
+		self.text_emb, self.text_model = Text_Embedder(in_size = 50).to(device), Text_Generator((128,176), noise_dim = 512, specnorm = True)
+
+		print("Loading models...")
+		df = pd.read_csv("./weights/glove.6B.50d.txt", sep=" ", quoting=3, header=None, index_col=0)
+		self.word_embs = {key: val.values for key, val in df.T.items()}
 
 		self.star_cond = np.zeros(5)
 		self.star_cond[0] = 1
 
 		self.gen_models_list = ["CIFAR-10"]
 		self.style_models_list = ["Van Gogh", "Landscapes", "Fruits", "Ukiyo-e", "Doodles"]
-		self.gaugan_models_list = ["Arbitrary"]
+		self.gaugan_models_list = ["Landscapes"]
 		self.load_models()
 
 	def load_models(self):
 		self.model.load_state_dict(torch.load("./weights/MSG_G.pth",
 									map_location = "cpu"))
-		self.star_model.load_state_dict(torch.load("./weights/stargan_G.pth",
+		self.gau_model.load_state_dict(torch.load("./weights/gaugan_256.pth",
+									map_location = "cpu"))
+		self.star_model.load_state_dict(torch.load("/weights/stargan_G.pth",
 									map_location = "cpu"))
 		self.sr_model.load_state_dict(torch.load("./weights/SR_G128.pth",
+									map_location = "cpu"))
+		self.text_emb.load_state_dict(torch.load("./weights/MSGRoss_T.pth",
+									map_location = "cpu"))
+		self.text_model.load_state_dict(torch.load("./weights/MSGRoss_G.pth",
 									map_location = "cpu"))
 
 	def load_style_model(self, style_value):
 		encoding = np.zeros(5)
 		encoding[self.style_models_list.index(style_value)] = 1
 		self.star_cond = encoding
+
+	def load_gan_model(self, model_name):
+		return
 
 	def generate(self, noise = None):
 		if noise is None:
@@ -112,6 +129,28 @@ class GANModels:
 			gen_img = self.gau_model(noise, img)
 
 		gen_img = np.uint8((gen_img+1)*255/2)
+		trans = transforms.ToPILImage(mode="RGB")
+		gen_img = trans(gen_img[0].transpose(1, 2, 0))
+		return gen_img, noise
+
+	def text_generate(self, text, noise = None):
+		embeddings = []
+		for i in text.split():
+			i = i.lower()
+			if i in self.word_embs:
+				embeddings.append(self.word_embs[i])
+			else:
+				embeddings.append(self.word_embs["random"])
+		embeddings = torch.Tensor([embeddings])
+
+		emb = self.text_emb(embeddings)
+
+		if noise is None:
+			noise = torch.randn(1, self.text_noise_dim)
+		with torch.no_grad():
+			gen_img = self.text_model(noise, noise, emb)
+
+		gen_img = np.uint8((gen_img[-1]+1)*255/2)
 		trans = transforms.ToPILImage(mode="RGB")
 		gen_img = trans(gen_img[0].transpose(1, 2, 0))
 		return gen_img, noise

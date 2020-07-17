@@ -62,10 +62,12 @@ class GANGui:
 		self.tool_pencil = Button(self.toolbar, text = "Pncl", width = 3, command = lambda : self.set_tool("pencil"))
 		self.tool_eraser = Button(self.toolbar, text = "Ersr", width = 3, command = lambda : self.set_tool("eraser"))
 		self.tool_gen = Button(self.toolbar, text = "Gen", width = 3, command = self.generate)
+		self.tool_text = Button(self.toolbar, text = "TxtG", width = 3, command = self.text_gen)
 		self.tool_move.grid(row = 0, column = 0, sticky = W)
 		self.tool_pencil.grid(row = 0, column = 1, sticky = W)
 		self.tool_eraser.grid(row = 1, column = 0, sticky = W)
 		self.tool_gen.grid(row = 1, column = 1, sticky = W)
+		self.tool_text.grid(row = 2, column = 0, sticky = W)
 
 		Label(self.toolbar, text = "Stoke Width", background = "#313134", foreground = "#FFFFFF").grid(row = 0, column = 2, padx = 4)
 		self.width_entry = Entry(self.toolbar, width = 3)
@@ -448,6 +450,7 @@ class GANGui:
 		#All items as an image, later list and dict, curr layer
 		hideables = self.hide_other_layers()
 		img = self.canvas_to_pil().convert("RGB")
+		img = self.white_to_transparency(img)
 		img = ImageTk.PhotoImage(img)
 		self.show_hidden_layers(hideables)
 
@@ -476,6 +479,7 @@ class GANGui:
 
 		img = cv2.GaussianBlur(img, (5,5), 20)
 		img = Image.fromarray(img)
+		img = self.white_to_transparency(img)
 
 		img_t = ImageTk.PhotoImage(img)
 		i = self.canvas.create_image(0, 0, anchor=NW, image = img_t)
@@ -484,6 +488,14 @@ class GANGui:
 
 		self.push_undo()
 		root.update_idletasks()
+
+
+	def white_to_transparency(self, img):
+		x = np.asarray(img.convert('RGBA')).copy()
+
+		x[:, :, 3] = (255 * (x[:, :, :3] != 255).any(axis=2)).astype(np.uint8)
+
+		return Image.fromarray(x)
 
 	#######################################################################################################################
 	#GAN RELATED FUNCTION CALLS
@@ -504,6 +516,23 @@ class GANGui:
 
 		self.add_new_layer()
 		#self.undo_stack.pop(-1)
+
+		i = self.canvas.create_image(0, 0, anchor=NW, image = img_t)
+		self.canvas.itemconfig(i, tags = ("Layer_" + str(self.no_of_layers), "image"))
+		self.layer_image_dict["Layer_" + str(self.no_of_layers)] = [img_t]
+
+		self.push_undo()
+		root.update_idletasks()
+
+	def text_gen(self):
+		w = textgeneratePopup(self.root, self.model)
+		self.root.wait_window(w.top)
+
+		img_t = w.img_t3
+		if img_t is None or not w.apply:
+			return
+
+		self.add_new_layer()
 
 		i = self.canvas.create_image(0, 0, anchor=NW, image = img_t)
 		self.canvas.itemconfig(i, tags = ("Layer_" + str(self.no_of_layers), "image"))
@@ -537,6 +566,7 @@ class GANGui:
 			self.canvas.delete(i)
 
 		gen_img = self.model.translate(img, mask, operation)
+		gen_img = self.white_to_transparency(gen_img)
 		img_t = ImageTk.PhotoImage(gen_img)
 
 		if operation == "sr":
