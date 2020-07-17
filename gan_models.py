@@ -58,7 +58,7 @@ class GANModels:
 									map_location = "cpu"))
 		self.gau_model.load_state_dict(torch.load("./weights/gaugan_256.pth",
 									map_location = "cpu"))
-		self.star_model.load_state_dict(torch.load("/weights/stargan_G.pth",
+		self.star_model.load_state_dict(torch.load("./weights/stargan_G.pth",
 									map_location = "cpu"))
 		self.sr_model.load_state_dict(torch.load("./weights/SR_G128.pth",
 									map_location = "cpu"))

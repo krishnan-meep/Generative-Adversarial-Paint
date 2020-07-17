@@ -1,3 +1,4 @@
 temp.eps
 temp.png
 __pycache__/
+weights/glove.6B.50d.txt
